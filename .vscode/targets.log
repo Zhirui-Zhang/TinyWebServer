@@ -8,7 +8,7 @@ make: *** No rule to make target 'all'.  Stop.
 # This is free software: you are free to change and redistribute it.
 # There is NO WARRANTY, to the extent permitted by law.
 
-# Make data base, printed on Wed Jul 20 10:13:23 2022
+# Make data base, printed on Wed Jul 20 15:22:18 2022
 
 # Variables
 
@@ -49,7 +49,7 @@ LESSOPEN = | /usr/bin/lesspipe %s
 # environment
 VSCODE_CWD = /home/zzr
 # environment
-SSH_CONNECTION = 192.168.75.1 64974 192.168.75.130 22
+SSH_CONNECTION = 192.168.75.1 62337 192.168.75.130 22
 # environment
 PATH = /home/zzr/.vscode-server/bin/3b889b090b5ad5793f524b5d1d39fda662b96a2a/bin/remote-cli:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:/usr/games:/usr/local/games:/snap/bin
 # environment
@@ -65,7 +65,7 @@ LS_COLORS =
 # environment
 PWD = /home/zzr/TinyWebServer
 # environment
-VSCODE_IPC_HOOK_CLI = /run/user/1000/vscode-ipc-a1f0df94-ea65-47f7-a5bf-5c808ab88460.sock
+VSCODE_IPC_HOOK_CLI = /run/user/1000/vscode-ipc-65dbab58-9450-439d-bfc0-a31f6e7d8c5e.sock
 # automatic
 *D = $(patsubst %/,%,$(dir $*))
 # environment
@@ -79,7 +79,7 @@ LESSCLOSE = /usr/bin/lesspipe %s %s
 # environment
 LOGNAME = zzr
 # environment
-APPLICATION_INSIGHTS_NO_DIAGNOSTIC_CHANNEL = true
+APPLICATION_INSIGHTS_NO_DIAGNOSTIC_CHANNEL = 1
 # automatic
 +F = $(notdir $+)
 # environment
@@ -115,7 +115,7 @@ MAKEFLAGS = pqrR
 # environment
 MFLAGS = -pqrR
 # environment
-SSH_CLIENT = 192.168.75.1 64974 22
+SSH_CLIENT = 192.168.75.1 62337 22
 # environment
 MAIL = /var/mail/zzr
 # automatic
@@ -195,6 +195,6 @@ Makefile:
 # strcache performance: lookups = 23 / hit rate = 17%
 # hash-table stats:
 # Load=19/8192=0%, Rehash=0, Collisions=1/23=4%
-# Finished Make data base on Wed Jul 20 10:13:23 2022
+# Finished Make data base on Wed Jul 20 15:22:18 2022
 
  
