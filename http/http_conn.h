@@ -58,12 +58,10 @@ public:
     // 响应报文写入函数，非阻塞
     bool write();
 
-    // 新增的三个额外函数
+    // 新增的两个额外函数  （和公众号写的不太一样，少了一个函数）
     sockaddr_in* get_address() {return &m_address};
-    // 同步线程初始化数据库读取表
-    void initmysql_result();
-    // CGI使用线程池初始化数据库表
-    void init_resultfile(connection_pool *connPool);
+    // 同步线程池初始化数据库读取表
+    void initmysql_result(connection_pool *connPool);
 
 private:
     // 内部的私有初始化调用
@@ -163,7 +161,7 @@ private:
     // 剩余发送字节数
     int bytes_to_send;
     // 已发送字节数
-    int bytes_sent;
+    int bytes_have_sent;
 };
 
 #endif
