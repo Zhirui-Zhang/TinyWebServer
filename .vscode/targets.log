@@ -8,7 +8,7 @@ make: *** No rule to make target 'all'.  Stop.
 # This is free software: you are free to change and redistribute it.
 # There is NO WARRANTY, to the extent permitted by law.
 
-# Make data base, printed on Tue Jul 19 20:43:57 2022
+# Make data base, printed on Tue Jul 19 21:15:10 2022
 
 # Variables
 
@@ -65,7 +65,7 @@ LS_COLORS =
 # environment
 PWD = /home/zzr/TinyWebServer
 # environment
-VSCODE_IPC_HOOK_CLI = /run/user/1000/vscode-ipc-e4a389ff-e153-4c3b-b7d6-9a8530bd93f1.sock
+VSCODE_IPC_HOOK_CLI = /run/user/1000/vscode-ipc-612a5937-e76e-4871-a8de-1a220a000796.sock
 # automatic
 *D = $(patsubst %/,%,$(dir $*))
 # environment
@@ -197,6 +197,6 @@ Makefile:
 # strcache performance: lookups = 23 / hit rate = 17%
 # hash-table stats:
 # Load=19/8192=0%, Rehash=0, Collisions=1/23=4%
-# Finished Make data base on Tue Jul 19 20:43:57 2022
+# Finished Make data base on Tue Jul 19 21:15:10 2022
 
  
