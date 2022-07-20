@@ -11,7 +11,7 @@
 #include <arpa/inet.h>
 #include <assert.h>
 #include <sys/stat.h>
-#include <string>
+#include <string.h>
 #include <pthread.h>
 #include <cstdio>
 #include <cstdlib>
@@ -42,12 +42,13 @@ public:
     enum LINE_STATUS {LINE_OK = 0, LINE_BAD, LINE_OPEN}; 
 
 public:
+    // 下面定义了init和close_http函数用于类的初始化和关闭，故ctor和dtor只是声明，没有实际用处
     http_conn();
     ~http_conn();
 
 public:
     // 初始化套接字地址，内部会调用私有成员函数init()
-    void init(int sockfd, const sockaddr_in& addr);
+    void init(int sockfd, const sockaddr_in &addr);
     // 关闭http连接
     void close_http(bool real_close = true);
 
@@ -107,7 +108,7 @@ public:
     // 统计用户数量
     static int m_user_count;
     // 新增的MYSQL类型成员变量
-    MYSQL* mysql;
+    MYSQL* m_mysql;
 
 private:
     // 该http连接的sockfd和对方的socket地址
@@ -155,13 +156,13 @@ private:
 
     // 下面为新增变量
     // 是否启用的POST
-    int cgi;    
+    int m_cgi;    
     // 存储请求头数据
     char *m_header_data; 
     // 剩余发送字节数
-    int bytes_to_send;
+    int m_bytes_to_send;
     // 已发送字节数
-    int bytes_have_sent;
+    int m_bytes_have_sent;
 };
 
 #endif
