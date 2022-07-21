@@ -50,7 +50,7 @@ public:
     // 初始化套接字地址，内部会调用私有成员函数init()
     void init(int sockfd, const sockaddr_in &addr);
     // 关闭http连接
-    void close_http(bool real_close = true);
+    void close_conn(bool real_close = true);
 
     // 处理客户请求，也就是threadpool中模板类run()中调用的模板T的成员函数
     void process();
@@ -74,8 +74,8 @@ private:
     bool process_write(HTTP_CODE res);
 
     // 下面四个函数被process_read调用，用来分析http请求
-    // 主状态机解析报文的请求行数据
-    HTTP_CODE parse_line(char *text);
+    // 主状态机解析报文的请求行数据，注意不要和从状态机的读取一行parse_line函数搞混了！
+    HTTP_CODE parse_request_line(char *text);
     // 主状态机解析报文的请求头部数据
     HTTP_CODE parse_header(char *text);
     // 主状态机解析报文的请求体数据
@@ -117,11 +117,11 @@ private:
     
     // 读缓冲区的http请求报文数据
     char m_read_buf[READ_BUFFER_SIZE];
-    // m_read_buf数据中已经读取数据的最后一个字节的下一个位置
+    // m_read_buf数据中一次性读取数据的最后一个字节的下一个位置，应该是最大的值
     int m_read_idx;
-    // m_read_buf中当前读取到的位置  Q:这三个参数的关系和区别？
+    // m_read_buf中已经读取到的字节总数，应为是三个数中间值  Q:这三个参数的关系和区别？
     int m_checked_idx;
-    // 当前正在解析的行的起始位置，也就是已经读取到的字节总数
+    // 表示即将解析的行的起始位置，应是最小值
     int m_start_line;
 
     // 写缓冲区的数据
@@ -157,8 +157,8 @@ private:
     // 下面为新增变量
     // 是否启用的POST
     int m_cgi;    
-    // 存储请求头数据
-    char *m_header_data; 
+    // 存储用户名和密码信息
+    char *m_user_data; 
     // 剩余发送字节数
     int m_bytes_to_send;
     // 已发送字节数
