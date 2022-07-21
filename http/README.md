@@ -10,35 +10,35 @@
 
 这里需要注重说明do_request函数中解析m_url的部分，参考推送中的说明
 > m_url为请求报文中解析出的请求资源，以/开头，也就是/xxx，项目中解析后的m_url有8种情况。
-
-    /
-        GET请求，跳转到judge.html，即欢迎访问页面
-
-    /0
-        POST请求，跳转到register.html，即注册页面
-
-    /1
-        POST请求，跳转到log.html，即登录页面
-
-    /2CGISQL.cgi
-        POST请求，进行登录校验
-
-        验证成功跳转到welcome.html，即资源请求成功页面
-
-        验证失败跳转到logError.html，即登录失败页面
-
-    /3CGISQL.cgi
-        POST请求，进行注册校验
-
-        注册成功跳转到log.html，即登录页面
-
-        注册失败跳转到registerError.html，即注册失败页面
-
-    /5
-        POST请求，跳转到picture.html，即图片请求页面
-
-    /6
-        POST请求，跳转到video.html，即视频请求页面
-
-    /7
-        POST请求，跳转到fans.html，即关注页面
+>
+>    /
+>        GET请求，跳转到judge.html，即欢迎访问页面
+>
+>    /0
+>        POST请求，跳转到register.html，即注册页面
+>
+>    /1
+>        POST请求，跳转到log.html，即登录页面
+>
+>    /2CGISQL.cgi
+>        POST请求，进行登录校验
+>
+>        验证成功跳转到welcome.html，即资源请求成功页面
+>
+>        验证失败跳转到logError.html，即登录失败页面
+>
+>    /3CGISQL.cgi
+>        POST请求，进行注册校验
+>
+>        注册成功跳转到log.html，即登录页面
+>
+>        注册失败跳转到registerError.html，即注册失败页面
+>
+>    /5
+>        POST请求，跳转到picture.html，即图片请求页面
+>
+>    /6
+>        POST请求，跳转到video.html，即视频请求页面
+>
+>    /7
+>        POST请求，跳转到fans.html，即关注页面
