@@ -1,6 +1,8 @@
 {
     "makefile.extensionOutputFolder": "./.vscode",
     "files.associations": {
-        "new": "cpp"
+        "new": "cpp",
+        "cerrno": "cpp",
+        "*.tcc": "cpp"
     }
 }
