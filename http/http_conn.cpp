@@ -160,7 +160,7 @@ void http_conn::process() {
     modfd(m_epollfd, m_sockfd, EPOLLOUT);
 }
 
-// 读取浏览器发来的数据，如果工作在ET模式下，需要一次性非阻塞地循环读取全部数据
+// 由主线程读取浏览器发来的数据，如果工作在ET模式下，需要一次性非阻塞地循环读取全部数据
 bool http_conn::read_once() {
     // 如果已经读取数据长度大于总缓冲区长度，返回false
     if (m_read_idx >= READ_BUFFER_SIZE) return false;
@@ -198,9 +198,72 @@ bool http_conn::read_once() {
 #endif
 }
 
-// 响应报文写入函数，非阻塞，内部调用writev函数
+// 响应报文写入函数，非阻塞，内部调用writev函数，由主线程检测写事件，并调用http_conn::write函数将响应报文发送给浏览器端
+// writev函数用于在一次函数调用中写多个非连续缓冲区，此处为先发送http响应报文，再发送内存映射区的请求文件内容
 bool http_conn::write() {
-    
+    // 照书上代码做了改动，增加两个计数变量，tmp表示当前writev函数写入的长度，new_add表示iovec指针偏移量
+    int tmp = 0, new_add = 0;
+
+    // 如果待发送字节数<=0，出错，重新注册读事件和EPOLLONESHOT，初始化http对象，一般不会出现这种情况
+    if (m_bytes_to_send == 0) {
+        modfd(m_epollfd, m_sockfd, EPOLLIN);
+        init();
+        return true;
+    }
+
+    // 一次性循环写入响应报文内容
+    while (true) {
+        // 将响应报文的状态行、消息头、空行和响应正文发送给浏览器端
+        tmp = writev(m_sockfd, m_iv, m_iv_count);
+        
+        if (tmp > 0) {
+            // 更新已发送字节
+            m_bytes_have_sent += tmp;
+            // 偏移iovec指针，可能为负，m_write_idx仅仅是m_iv[0]的响应报文的长度，不包括文件正文长度
+            new_add = m_bytes_have_sent - m_write_idx;
+        } else if (tmp == -1) {
+            // 如果返回-1，可能是主线程的写缓冲区写满了，此时更新iovec结构体的指针和长度，并重新注册写事件
+            // 等待主线程中下一次写事件触发（当写缓冲区从不可写变为可写，触发epollout）
+            // 因此在此期间无法立即接收到同一用户的下一请求，但可以保证连接的完整性。
+            if (errno = EAGAIN) {
+                if (m_bytes_have_sent >= m_iv[0].iov_len) {
+                    // 说明主线程缓冲区满时，子线程的响应报文部分已经发送完了
+                    // 再次响应写事件时需要接着发送内存映射文件的数据
+                    m_iv[0].iov_len = 0;
+                    m_iv[1].iov_base = m_file_address + new_add;
+                    m_iv[1].iov_len = m_bytes_to_send;
+                } else {
+                    // 此时说明主线程缓冲区满时，子线程的响应报文部分还未发送完，new_add是负数
+                    // 再次响应写事件时需要接着发送响应报文的部分
+                    // 其实这个不太可能发生，因为响应报文就那么几句话，大部分情况是内存映射文件过大，一次性写不完，导致主线程缓冲区满
+                    m_iv[0].iov_base = m_write_buf + m_bytes_have_sent;
+                    m_iv[0].iov_len = m_write_idx - m_bytes_have_sent;
+                }
+                // 重新注册写事件，返回true
+                modfd(m_epollfd, m_sockfd, EPOLLOUT);
+                return true;
+            } else {
+                // 若不是缓冲区已满，说明发送失败，取消映射，返回false
+                unmap();
+                return false;
+            }
+        }
+
+        // 更新待发送的字节数
+        m_bytes_to_send -= tmp;
+        // 如果m_iv缓冲区全部发送完，取消映射，重新注册事件，并根据m_linger是否保持连接
+        if (m_bytes_to_send <= 0) {
+            unmap();
+            modfd(m_epollfd, m_sockfd, EPOLLIN);
+            if (m_linger) {
+                // 如果是长连接，再次初始化http对象，返回true，否则返回false
+                init();
+                return true;
+            } else {
+                return false;
+            }
+        }
+    }
 }
 
 // 同步线程池初始化数据库读取表
@@ -518,4 +581,73 @@ http_conn::LINE_STATUS http_conn::parse_line() {
     }
     // 数据读取结束还没有'\r''\n'，说明数据还不完整，需要继续读取，返回LINE_OPEN
     return LINE_OPEN;
+}
+
+// 取消内存映射，利用munmap函数释放，记得释放后将原字符串设置为空
+void http_conn::unmap() {
+    if (m_file_address) {
+        munmap(m_file_address, m_file_stat.st_size);
+        m_file_address = NULL;
+    }
+}
+
+// 写入响应报文主函数，借助可变参数列表实现响应报文行/头部/体的不同输出格式
+bool http_conn::add_response(const char *format, ...) {
+    // 如果当前写位置大于缓冲区长度，返回false
+    if (m_write_idx >= WRITE_BUFFER_SIZE) return false;
+
+    // 创建可变参数列表，注意va_start必须和va_end成对使用，创建并释放列表
+    va_list arg_list;
+    va_start(arg_list, format);
+    // 调用vsnprintf，功能和snprintf相同，都是输出长度size的字符到m_write_buf中，只不过vsnprintf可输出可变参数列表
+    // size是当前写缓冲区的剩余空间，WRITE_BUFFER_SIZE - m_write_idx - 1
+    int len = vsnprintf(m_write_buf, WRITE_BUFFER_SIZE - m_write_idx - 1, format, arg_list);
+    if (len >= WRITE_BUFFER_SIZE - m_write_idx - 1) {
+        // 如果输出长度大于size，返回false
+        va_end(arg_list);
+        return false;
+    }
+    // 记得更新写位置
+    m_write_idx += len;
+    va_end(arg_list);
+    LOG_INFO("request:%s", m_write_buf);
+    Log::get_instance()->flush();
+    return true;
+}
+
+// 添加响应报文状态行，注意可变参数列表的写法，和正常printf输出格式相同
+bool http_conn::add_status_line(int status, const char *title) {
+    return add_response("HTTP/1.1 %d %s\r\n", status, title);
+}
+
+// 添加响应报文状态头部，由于头部包含不同信息，封装到一个函数中，个人改写了一下
+bool http_conn::add_headers(int content_length) {
+    if (!add_content_length(content_length) || !add_linger() || 
+        !add_content_type() || !add_blank_line()) return false;
+    return true;    
+}
+
+// 添加响应报文状态头部中的响应报文长度信息，源代码中Content-Length:后面好像少了个空格
+bool http_conn::add_content_length(int content_length) {
+    return add_response("Content-Length: %d\r\n", content_length);
+}
+
+// 添加响应报文状态头部中的连接状态
+bool http_conn::add_linger() {
+    return add_response("Connection: %s\r\n", m_linger ? "Keep-Alive" : "Close");
+}
+
+// 新增函数，添加响应报文状态头部中的响应文本类型，这里是html文本类型
+bool http_conn::add_content_type() {
+    return add_response("Content-Type: text/html\r\n");
+} 
+
+// 添加空白行，不知道不写%s直接返回\r\n行不行，个人觉得可以
+bool http_conn::add_blank_line() {
+    return add_response("\r\n");
+}
+
+// 添加响应报文体
+bool http_conn::add_content(const char *content) {
+    return add_response("%s", content);
 }

@@ -59,7 +59,7 @@ public:
     // 响应报文写入函数，非阻塞
     bool write();
 
-    // 新增的两个额外函数  （和公众号写的不太一样，少了一个函数）
+    // 新增的两个额外函数，这个get_address用过吗？  （和公众号写的不太一样，少了一个函数）
     sockaddr_in* get_address() {return &m_address};
     // 同步线程池初始化数据库读取表
     void initmysql_result(connection_pool *connPool);
@@ -94,13 +94,13 @@ private:
 
     // 下面8个函数由do_request调用，根据响应报文格式生成8个部分
     bool add_response(const char *format, ...);
-    bool add_content(const char *content);
     bool add_status_line(int status, const char *title);
     bool add_headers(int content_length);
-    bool add_content_type();    // 新增函数
     bool add_content_length(int content_length);
     bool add_linger();
+    bool add_content_type();    // 新增函数，但是源代码里没用过，离谱，我自己用吧
     bool add_blank_line();
+    bool add_content(const char *content);
 
 public:
     // 所有socket上的事件都被注册到同一个epoll内核事件表中，所以将epollfd设置为静态成员变量
@@ -159,7 +159,7 @@ private:
     int m_cgi;    
     // 存储用户名和密码信息
     char *m_user_data; 
-    // 剩余发送字节数
+    // 剩余发送字节数，该值为响应报文长度+内存映射文件长度之和
     int m_bytes_to_send;
     // 已发送字节数
     int m_bytes_have_sent;
