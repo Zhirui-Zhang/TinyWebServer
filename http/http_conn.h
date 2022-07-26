@@ -59,7 +59,7 @@ public:
     // 响应报文写入函数，非阻塞
     bool write();
 
-    // 新增的两个额外函数，这个get_address用过吗？  （和公众号写的不太一样，少了一个函数）
+    // 新增的两个额外函数，这个get_address用过吗？答：在主函数中用过一次  （和公众号写的不太一样，少了一个函数）
     sockaddr_in* get_address() {return &m_address};
     // 同步线程池初始化数据库读取表
     void initmysql_result(connection_pool *connPool);
@@ -113,7 +113,7 @@ public:
 private:
     // 该http连接的sockfd和对方的socket地址
     int m_sockfd;
-    sockaddr_in m_address;
+    sockaddr_in m_address;      // 这个变量其实没啥卵用
     
     // 读缓冲区的http请求报文数据
     char m_read_buf[READ_BUFFER_SIZE];
