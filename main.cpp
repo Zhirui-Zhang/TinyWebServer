@@ -18,7 +18,7 @@
 
 #define MAX_FD 65536              // 最大文件描述符个数
 #define MAX_EVENT_NUMBER 10000    // 最大事件数
-#define MIN_TIMESLOT 5            // 最小超时单位 5s
+#define TIMESLOT 5            // 最小超时单位 5s
 
 #define SYNLOG  // 同步写日志 
 // #define ASYNLOG  异步写日志
@@ -58,6 +58,23 @@ void addsig(int sig, void (handler)(int), bool restart = true) {
     sigfillset(&sa.sa_mask);
     // 执行sigaction函数，assert函数是内部判别式为false时终止程序，即如果返回值为-1报错
     assert(sigaction(sig, &sa, NULL) != -1);
+}
+
+// 定时处理任务，重新定时并不断出发SIGALRM信号
+void timer_handler() {
+    timer_lst.tick();
+    alarm(TIMESLOT);
+}
+
+// 定时器回调函数，删除非活动连接在socket上的注册事件，关闭文件描述符，减少用户连接数
+void cb_func(client_data* user_data) {
+    epoll_ctl(epollfd, EPOLL_CTL_DEL, user_data->sockfd, 0);
+    assert(user_data);
+    close(user_data->sockfd);
+    --http_conn::m_user_count;
+    // 记录日志
+    LOG_INFO("close fd %d", user_data->sockfd);
+    LOG::get_instance()->flush();
 }
 
 void show_error(int connfd, const char* info) {
@@ -116,7 +133,7 @@ int main(int argc, char *argv[]) {
     struct sockaddr_in address;
     bzero(&address, sizeof(address));
     address.sin_family = AF_INET;
-    address.sin_addr = htonl(INADDR_ANY);
+    address.sin_addr.s_addr = htonl(INADDR_ANY);
     address.sin_port = htons(port);
 
     // 设置端口复用
@@ -140,17 +157,185 @@ int main(int argc, char *argv[]) {
     res = socketpair(AF_UNIX, SOCK_STREAM, 0, pipefd);
     assert(res != -1);
     setnonblocking(pipefd[1]);
-    addfd(epollfd, pipe[0], false);
+    addfd(epollfd, pipefd[0], false);
 
     // 传递给主循环的信号值，这里只关注SIGALRM和SIGTERM
     addsig(SIGALRM, sig_handler, false);
     addsig(SIGTERM, sig_handler, false);
     bool stop_server = false;
 
+    // 创建连接资源数组
     client_data *users_timer = new client_data[MAX_FD];
-
+    // 超时默认false
     bool timeout = false;
-    alarm(MIN_TIMESLOT);
+    alarm(TIMESLOT);
+    
+    while (!stop_server) {
+        // 调用epoll_wait函数，阻塞等待监控文件描述符是否有事件发生 
+        int num = epoll_wait(epollfd, events, MAX_EVENT_NUMBER, -1);
+        if (num < 0 && errno != EAGAIN) {
+            // 如果返回变化数量为负且不是EAGAIN信号，出错，break
+            LOG_ERROR("%s", "epoll failure");
+            break;
+        }
+        // 对所有就绪事件进行处理
+        for (int i = 0; i < num; ++i) {
+            int sockfd = events[i].data.fd;
+
+            // 如果文件描述符是监听fd，说明需要处理新到的客户连接
+            if (sockfd == listenfd) {
+                struct sockaddr_in client_address;
+                socklen_t client_addr_len = sizeof(client_address);
+
+#ifdef listenfdLT
+                int connfd = accept(sockfd, (struct sockaddr* )&client_address, &client_addr_len);
+                if (connfd < 0) {
+                    // 返回connfd出错，写入日志
+                    LOG_ERROR("%s: errno is: %d", "accept error", errno);
+                    continue;
+                }
+                // 若连接数量已达上限，显示当前服务器繁忙
+                if (http_conn::m_user_count >= MAX_FD) {
+                    show_error(connfd, "Internal Server Busy");
+                    LOG_ERROR("%s", "Internal Server Busy");
+                    continue;
+                }
+
+                // 若正常获得连接fd，利用它初始化http对象
+                users[connfd].init(connfd, client_address);
+                // 初始化client_data数据对应的连接资源，创建定时器临时变量，与用户数据绑定起来，最后把定时器添加到升序链表当中
+                users_timer[connfd].address = client_address;
+                users_timer[connfd].sockfd = connfd;
+                util_timer *timer = new util_timer();
+                timer->user_data = &users_timer[connfd];
+                timer->cb_func = cb_func;
+                time_t cur = time(NULL);
+                // 超时时间设为当前时间+三倍TIMESLOT
+                timer->expire = cur + 3 * TIMESLOT;
+                users_timer[connfd].timer = timer;
+                timer_lst.add_timer(timer);
+#endif
+
+// 如果是边缘触发模式，每次需要把新到达的客户连接完全处理结束，在connfd < 0或连接达到上限时退出循环即可 
+#ifdef listenfdET
+                while (true) {
+                    int connfd = accept(sockfd, (struct sockaddr* )&client_address, &client_addr_len);
+                    if (connfd < 0) {
+                        LOG_ERROR("%s: errno is: %d", "accept error", errno);
+                        break;
+                    }
+                    if (http_conn::m_user_count >= MAX_FD) {
+                        show_error(connfd, "Internal Server Busy");
+                        LOG_ERROR("%s", "Internal Server Busy");
+                        break;
+                    }
+
+                    users[connfd].init(connfd, client_address);
+                    users_timer[connfd].address = client_address;
+                    users_timer[connfd].sockfd = connfd;
+                    util_timer *timer = new util_timer();
+                    timer->user_data = &users_timer[connfd];
+                    timer->cb_func = cb_func;
+                    time_t cur = time(NULL);
+                    timer->expire = cur + 3 * TIMESLOT;
+                    users_timer[connfd].timer = timer;
+                    timer_lst.add_timer(timer);
+                }
+#endif
+            } 
+
+            else if (events[i].events & (EPOLLRDHUP | EPOLLHUP | EPOLLERR)) {
+                // 处理异常事件，即发生变化的内核事件包括EPOLLRDHUP | EPOLLHUP | EPOLLERR事件
+                // 服务器端关闭连接，并移除对应的定时器
+                users[sockfd].close_conn();
+                util_timer *timer = users_timer[sockfd].timer;
+                timer->cb_func(&users_timer[sockfd]);
+                if (timer) timer_lst.del_timer(timer);
+            } 
+            
+            else if ((sockfd == pipefd[0]) && (events[i].events & EPOLLIN)) {
+                // 处理定时器信号
+                int sig = 0;
+                char signals[1024];
+                res = recv(pipefd[0], signals, sizeof(signals), 0);
+                if (res == 0 || res == -1) continue;
+                else {
+                    for (int i = 0; i < res; ++i) {
+                        if (signals[i] == SIGALRM) timeout = true;
+                        if (signals[i] == SIGTERM) stop_server = true;
+                    }
+                }
+            } 
+            
+            else if (events[i].events & EPOLLIN) {
+                // 先创建一个定时器对象，便于后续定时处理
+                util_timer *timer = users_timer[i].timer;
+                // 处理客户连接上接收到的数据
+                if (users[sockfd].read_once()) {
+                    // 写入日志时用到了新增的get_address函数，转换成了struct sockaddr_in地址
+                    LOG_INFO("deal with the clients(%s)", inet_ntoa(users[sockfd].get_address()->sin_addr));
+                    Log::get_instance()->flush();
+
+                    // 如果一次性读取浏览器发来的全部数据成功，将该事件放入线程池请求队列中
+                    pool->append(&users[sockfd]);   // 应该和源代码 user + sockfd 一样吧？
+                    
+                    // 由于实现了数据传输，可以把相应的定时器向后移动3个TIMESLOT单位，调用adjust_timer函数
+                    if (timer) {
+                        LOG_INFO("%s", "adjust timer once");
+                        Log::get_instance()->flush();
+                        time_t cur = time(NULL);
+                        timer->expire = cur + 3 * TIMESLOT;
+                        timer_lst.adjust_timer(timer);
+                    }
+                } else {
+                    // 如果读取数据失败，服务器端关闭连接，并移除对应的定时器
+                    users[sockfd].close_conn();
+                    timer->cb_func(&users_timer[sockfd]);
+                    if (timer) timer_lst.del_timer(timer);
+                }
+            } 
+            
+            else if(events[i].events & EPOLLOUT) {
+                // 先创建一个定时器对象，便于后续定时处理
+                util_timer *timer = users_timer[i].timer;
+                // 处理客户连接写入的数据
+                if (users[sockfd].write()) {
+                    LOG_INFO("send data to the client(%s)", inet_ntoa(users[sockfd].get_address()->sin_addr));
+                    Log::get_instance()->flush();
+                    
+                    // 由于实现了数据传输，可以把相应的定时器向后移动3个TIMESLOT单位，调用adjust_timer函数
+                    if (timer) {
+                        LOG_INFO("%s", "adjust timer once");
+                        Log::get_instance()->flush();
+                        time_t cur = time(NULL);
+                        timer->expire = cur + 3 * TIMESLOT;
+                        timer_lst.adjust_timer(timer);
+                    }
+                } else {
+                    // 如果写入数据失败，服务器端关闭连接，并移除对应的定时器
+                    users[sockfd].close_conn();
+                    timer->cb_func(&users_timer[sockfd]);
+                    if (timer) timer_lst.del_timer(timer);
+                }
+            }
+        }
+        
+        // 在for循环遍历所有发生变化的文件描述符后，处理定时器超时事件，由于是非必要事件
+        // 收到信号并不马上处理，而是在处理完所有读写事件后再进行处理
+        if (timeout) {
+            timer_handler();
+            timeout = false;
+        }
+    }
+
+    // 收尾工作，关闭所有已经建立的文件描述符，释放各种数组空间
+    close(epollfd);
+    close(listenfd);
+    close(pipefd[0]);
+    close(pipefd[1]);
+    delete[] users;
+    delete[] users_timer;
+    delete pool;
 
     return 0;
 }
