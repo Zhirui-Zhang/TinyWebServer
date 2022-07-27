@@ -26,35 +26,40 @@ private:
     pthread_mutex_t m_mutex;
 };
 
-// 封装条件变量类，含有两个类成员，一个互斥锁和一个条件变量
+// 封装条件变量类，本应该含有两个类成员，一个互斥锁和一个条件变量
+// 但是为了适应日志中的循环队列，只保留一个条件变量m_cond，互斥锁由参数传入
 class cond {
 public:
     cond() {
-        if (pthread_mutex_init(&m_mutex, NULL) != 0) throw exception();
+        // if (pthread_mutex_init(&m_mutex, NULL) != 0) throw exception();
         if (pthread_cond_init(&m_cond, NULL) != 0) {
             // 如果初始化条件变量出错，应销毁已初始化的互斥锁成员
-            pthread_mutex_destroy(&m_mutex);
+            // pthread_mutex_destroy(&m_mutex);
             throw exception();
         }
     }
     ~cond() {
-        pthread_mutex_destroy(&m_mutex);
+        // pthread_mutex_destroy(&m_mutex);
         pthread_cond_destroy(&m_cond);
     }
-    bool wait() {
+    bool wait(pthread_mutex_t *m_mutex) {
         // 先给互斥锁上锁，然后调用wait函数会自动解锁，最后再给互斥锁解锁
         int res = 0;
-        pthread_mutex_lock(&m_mutex);
-        res = pthread_cond_wait(&m_cond, &m_mutex);
-        pthread_mutex_unlock(&m_mutex);
+        // pthread_mutex_lock(&m_mutex);
+        res = pthread_cond_wait(&m_cond, m_mutex);
+        // pthread_mutex_unlock(&m_mutex);
         return res == 0;
     }
     bool signal() {
         return pthread_cond_signal(&m_cond) == 0;
     }
+    // 新增broadcast广播功能，用于日志的生产者消费者模型中
+    bool broadcast() {
+        return pthread_cond_broadcast(&m_cond) == 0;
+    }
 
 private:
-    pthread_mutex_t m_mutex;
+    // pthread_mutex_t m_mutex;     // 不再保留互斥锁成员
     pthread_cond_t m_cond;
 };
 
