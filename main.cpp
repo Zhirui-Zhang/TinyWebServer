@@ -74,7 +74,7 @@ void cb_func(client_data* user_data) {
     --http_conn::m_user_count;
     // 记录日志
     LOG_INFO("close fd %d", user_data->sockfd);
-    LOG::get_instance()->flush();
+    Log::get_instance()->flush();
 }
 
 void show_error(int connfd, const char* info) {
@@ -89,7 +89,7 @@ int main(int argc, char *argv[]) {
 #endif
 
 #ifdef ASYNLOG
-    Log::get_instance()->init("ServerLog", 2000, 800000, 8);    // 同步日志模型
+    Log::get_instance()->init("ServerLog", 2000, 800000, 8);    // 异步日志模型
 #endif
 
     if (argc <= 1) {
