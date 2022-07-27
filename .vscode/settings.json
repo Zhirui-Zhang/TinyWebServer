@@ -3,6 +3,7 @@
     "files.associations": {
         "new": "cpp",
         "cerrno": "cpp",
-        "*.tcc": "cpp"
+        "*.tcc": "cpp",
+        "cstdlib": "cpp"
     }
 }
