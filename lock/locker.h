@@ -69,6 +69,10 @@ public:
     sem() {
         if (sem_init(&m_sem, 0, 0) != 0) throw exception();
     }
+    // 增加一个构造函数，可以设置初始value值，用于数据库连接池的初始化
+    sem(int num) {
+        if (sem_init(&m_sem, 0, num) != 0) throw exception();
+    }
     ~sem() {
         sem_destroy(&m_sem);
     }
