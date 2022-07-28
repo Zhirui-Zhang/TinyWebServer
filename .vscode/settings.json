@@ -4,6 +4,14 @@
         "new": "cpp",
         "cerrno": "cpp",
         "*.tcc": "cpp",
-        "cstdlib": "cpp"
+        "cstdlib": "cpp",
+        "unordered_map": "cpp",
+        "fstream": "cpp",
+        "istream": "cpp",
+        "ostream": "cpp",
+        "sstream": "cpp",
+        "list": "cpp",
+        "string": "cpp",
+        "iostream": "cpp"
     }
 }
