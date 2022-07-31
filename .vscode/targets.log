@@ -8,7 +8,7 @@ make: *** No rule to make target 'all'.  Stop.
 # This is free software: you are free to change and redistribute it.
 # There is NO WARRANTY, to the extent permitted by law.
 
-# Make data base, printed on Thu Jul 28 20:56:29 2022
+# Make data base, printed on Sun Jul 31 14:30:48 2022
 
 # Variables
 
@@ -49,7 +49,7 @@ LESSOPEN = | /usr/bin/lesspipe %s
 # environment
 VSCODE_CWD = /home/zzr
 # environment
-SSH_CONNECTION = 192.168.75.1 54714 192.168.75.130 22
+SSH_CONNECTION = 192.168.75.1 57184 192.168.75.130 22
 # environment
 PATH = /home/zzr/.vscode-server/bin/3b889b090b5ad5793f524b5d1d39fda662b96a2a/bin/remote-cli:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:/usr/games:/usr/local/games:/snap/bin
 # environment
@@ -65,7 +65,7 @@ LS_COLORS =
 # environment
 PWD = /home/zzr/TinyWebServer
 # environment
-VSCODE_IPC_HOOK_CLI = /run/user/1000/vscode-ipc-b406c894-ce41-4161-a044-9334e7c40512.sock
+VSCODE_IPC_HOOK_CLI = /run/user/1000/vscode-ipc-d9dc6ca2-56d0-4434-aacd-795837b217c2.sock
 # automatic
 *D = $(patsubst %/,%,$(dir $*))
 # environment
@@ -115,7 +115,7 @@ MAKEFLAGS = pqrR
 # environment
 MFLAGS = -pqrR
 # environment
-SSH_CLIENT = 192.168.75.1 54714 22
+SSH_CLIENT = 192.168.75.1 57184 22
 # environment
 MAIL = /var/mail/zzr
 # automatic
@@ -195,6 +195,6 @@ Makefile:
 # strcache performance: lookups = 23 / hit rate = 17%
 # hash-table stats:
 # Load=19/8192=0%, Rehash=0, Collisions=1/23=4%
-# Finished Make data base on Thu Jul 28 20:56:29 2022
+# Finished Make data base on Sun Jul 31 14:30:48 2022
 
  
