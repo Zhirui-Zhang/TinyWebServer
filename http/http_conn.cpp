@@ -268,7 +268,31 @@ bool http_conn::write() {
 
 // 同步线程池初始化数据库读取表
 void http_conn::initmysql_result(connection_pool *connPool) {
+    // 先从连接池中取出一个mysql连接
+    MYSQL *mysql = NULL;
+    connectionRAII mysqlconn(&mysql, connPool);
 
+    // 在user表中检索username，password数据，浏览器端输入
+    // mysql_query函数查询数据库中的某一个表内容，如果查询成功，返回0。如果出现错误，返回非0值。
+    if (mysql_query(mysql, "SELECT username, password FROM user")) {    // 注意这里最后不用加 ; 表示结束
+        LOG_ERROR("SELECT error:%s\n", mysql_error(mysql));
+    }
+
+    // 从表中检索完整结果集
+    MYSQL_RES *result = mysql_store_result(mysql);
+
+    // 返回结果集中的列数，这句话好像没啥用
+    int num_fields = mysql_num_fields(result);
+
+    // 返回所有字段结构的数组，这句话好像也没啥用
+    MYSQL_FIELD *fields = mysql_fetch_fields(result);
+
+    // 从已有的结果集中自动获取下一行，并将tiny_webserver.user表中存放的对应用户名和密码存入map(users)中
+    while (MYSQL_ROW row = mysql_fetch_row(result)) {
+        string tmp1(row[0]);
+        string tmp2(row[1]);
+        users[tmp1] = tmp2;
+    }
 }
 
 // 从m_read_buf读取，处理解析http请求报文
@@ -513,12 +537,68 @@ http_conn::HTTP_CODE http_conn::do_request() {
 
     // strrchr函数是找到 / 在 m_url中出现的最后一次位置，后面就是要访问的资源页面
     const char *p = strrchr(m_url, '/');
-    // 定义一个字符串，用来存储实际访问的页面资源
-    char *real_url = NULL;
 
     // 2 3分别为登录和注册校验页面，单独讨论
     if (m_cgi == 1 && (*(p + 1) == '2' || *(p + 1) == '3')) {
+        // 定义一个字符串，用来表示m_real_file后的尾缀
+        char *real_url = "/";
+        strcat(real_url, m_url + 2);
+        strcat(m_real_file, real_url);
 
+        // 将用户名和密码提取出来
+        // 格式：  user=123&password=456
+        char name[100], password[100];
+        int i = 5;  // 越过 user=长度
+        for (; m_user_data[i] != '&'; ++i) {
+            name[i - 5] = m_user_data[i];
+        }
+        name[i - 5] = '\0';
+        i += 10;    // 越过 &password= 长度
+        int j = 0;
+        for (; m_user_data[i] != '\0'; ++i, ++j) {
+            password[j] = m_user_data[i];
+        }
+        password[j] = '\0';
+
+        // 同步线程登录校验
+        if (*(p + 1) == '3') {
+            // 如果是注册校验，先检查是否有重名，若没有，再进行注册
+            char *sql_insert = NULL;
+            strcat(sql_insert, "INSERT INTO user(name, password) VALUES (");
+            strcat(sql_insert, "'");        // 加个单引号增加搜索效率？
+            strcat(sql_insert, name);
+            strcat(sql_insert, "', '");
+            strcat(sql_insert, password);
+            strcat(sql_insert, "')");       // 注意这里最后不用加 ; 表示结束
+
+            if (users.find(name) == users.end()) {
+                // 用户不存在，加锁注册用户，保证同步
+                m_lock.lock();
+                // 说实话感觉下面这个判断有点鸡肋，执行insert语句，若失败返回非0值
+                int res = mysql_query(m_mysql, sql_insert);
+                if (res) {
+                    // insert语句插入失败
+                    m_lock.unlock();
+                    strcpy(m_url, "registerError.html");
+                } else {
+                    // 插入成功，更新users map映射
+                    users[name] = password;
+                    m_lock.unlock();
+                    strcpy(m_url, "log.html");
+                }
+            } else {
+                // 用户已存在，注册失败
+                strcpy(m_url, "registerError.html");
+            }
+
+        } else if (*(p + 1) == '2') {
+            // 如果是登录校验，直接在已有的users即map集合中进行查找，并返回对应的页面
+            if (users.find(name) != users.end() && users[name] == password) {
+                strcpy(m_url, "/welcome.html");
+            } else {
+                strcpy(m_url, "logError.html");
+            }
+        }
     }
 
     // 其他情况把网站目录和m_real_file进行拼接

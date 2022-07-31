@@ -60,7 +60,7 @@ public:
     bool write();
 
     // 新增的两个额外函数，这个get_address用过吗？答：在主函数中用过一次  （和公众号写的不太一样，少了一个函数）
-    sockaddr_in* get_address() {return &m_address};
+    sockaddr_in* get_address() {return &m_address;}
     // 同步线程池初始化数据库读取表
     void initmysql_result(connection_pool *connPool);
 
