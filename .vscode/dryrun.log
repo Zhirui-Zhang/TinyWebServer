@@ -1,6 +1,5 @@
 make --dry-run --always-make --keep-going --print-directory
 make: Entering directory '/home/zzr/TinyWebServer'
+g++ -o server main.cpp ./threadpool/threadpool.h ./http/http_conn.h ./http/http_conn.cpp ./lock/locker.h ./log/block_queue.h ./log/log.h ./log/log.cpp ./CGI_MySQL/sql_connection_pool.h ./CGI_MySQL/sql_connection_pool.cpp -lpthread -lmysqlclient
 make: Leaving directory '/home/zzr/TinyWebServer'
  
-make: *** No targets.  Stop.
-

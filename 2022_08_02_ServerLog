@@ -1,0 +1,21 @@
+2022-08-02 20:02:58.858810 [erro]: epoll failure
+2022-08-02 20:09:00.936851 [erro]: epoll failure
+2022-08-02 20:09:18.912287 [erro]: epoll failure
+2022-08-02 20:12:40.735628 [erro]: epoll failure
+2022-08-02 20:12:59.541433 [erro]: epoll failure
+2022-08-02 20:15:40.297688 [info]: timer tick
+2022-08-02 20:18:23.725915 [info]: timer tick
+2022-08-02 20:30:09.484114 [info]: timer tick
+2022-08-02 20:34:25.410298 [info]: timer tick
+2022-08-02 20:37:27.355630 [info]: timer tick
+2022-08-02 20:53:35.049609 [info]: timer tick
+2022-08-02 20:53:40.050809 [info]: timer tick
+2022-08-02 20:53:45.051470 [info]: timer tick
+2022-08-02 20:53:50.052713 [info]: timer tick
+2022-08-02 20:53:50.052907 [info]: close fd 16
+2022-08-02 20:53:55.053980 [info]: timer tick
+2022-08-02 20:54:00.055122 [info]: timer tick
+2022-08-02 20:54:05.056199 [info]: timer tick
+2022-08-02 20:54:05.056459 [info]: close fd 17
+2022-08-02 21:01:01.685265 [info]: timer tick
+2022-08-02 21:01:06.686321 [info]: timer tick

@@ -173,8 +173,8 @@ int main(int argc, char *argv[]) {
     while (!stop_server) {
         // 调用epoll_wait函数，阻塞等待监控文件描述符是否有事件发生 
         int num = epoll_wait(epollfd, events, MAX_EVENT_NUMBER, -1);
-        if (num < 0 && errno != EAGAIN) {
-            // 如果返回变化数量为负且不是EAGAIN信号，出错，break
+        if (num < 0 && errno != EINTR) {
+            // 如果返回变化数量为负且不是EINTR信号，出错，break，注意不是EAGAIN，导致出错
             LOG_ERROR("%s", "epoll failure");
             break;
         }
@@ -206,7 +206,8 @@ int main(int argc, char *argv[]) {
                 // 初始化client_data数据对应的连接资源，创建定时器临时变量，与用户数据绑定起来，最后把定时器添加到升序链表当中
                 users_timer[connfd].address = client_address;
                 users_timer[connfd].sockfd = connfd;
-                util_timer *timer = new util_timer();
+                // 改动1
+                util_timer *timer = new util_timer;
                 timer->user_data = &users_timer[connfd];
                 timer->cb_func = cb_func;
                 time_t cur = time(NULL);
@@ -245,15 +246,17 @@ int main(int argc, char *argv[]) {
             } 
 
             else if (events[i].events & (EPOLLRDHUP | EPOLLHUP | EPOLLERR)) {
+                printf("1\n");
                 // 处理异常事件，即发生变化的内核事件包括EPOLLRDHUP | EPOLLHUP | EPOLLERR事件
                 // 服务器端关闭连接，并移除对应的定时器
-                users[sockfd].close_conn();
+                // 改动2 users[sockfd].close_conn();
                 util_timer *timer = users_timer[sockfd].timer;
                 timer->cb_func(&users_timer[sockfd]);
                 if (timer) timer_lst.del_timer(timer);
             } 
             
             else if ((sockfd == pipefd[0]) && (events[i].events & EPOLLIN)) {
+                printf("2\n");
                 // 处理定时器信号
                 int sig = 0;
                 char signals[1024];
@@ -268,8 +271,10 @@ int main(int argc, char *argv[]) {
             } 
             
             else if (events[i].events & EPOLLIN) {
+                printf("3\n");
                 // 先创建一个定时器对象，便于后续定时处理
-                util_timer *timer = users_timer[i].timer;
+                // 改动3
+                util_timer *timer = users_timer[sockfd].timer;
                 // 处理客户连接上接收到的数据
                 if (users[sockfd].read_once()) {
                     // 写入日志时用到了新增的get_address函数，转换成了struct sockaddr_in地址
@@ -277,7 +282,8 @@ int main(int argc, char *argv[]) {
                     Log::get_instance()->flush();
 
                     // 如果一次性读取浏览器发来的全部数据成功，将该事件放入线程池请求队列中
-                    pool->append(&users[sockfd]);   // 应该和源代码 user + sockfd 一样吧？
+                    // 改动4
+                    pool->append(users + sockfd);   // 应该和源代码 user + sockfd 一样吧？
                     
                     // 由于实现了数据传输，可以把相应的定时器向后移动3个TIMESLOT单位，调用adjust_timer函数
                     if (timer) {
@@ -287,17 +293,19 @@ int main(int argc, char *argv[]) {
                         timer->expire = cur + 3 * TIMESLOT;
                         timer_lst.adjust_timer(timer);
                     }
+
                 } else {
                     // 如果读取数据失败，服务器端关闭连接，并移除对应的定时器
-                    users[sockfd].close_conn();
+                    // 改动5 users[sockfd].close_conn();
                     timer->cb_func(&users_timer[sockfd]);
                     if (timer) timer_lst.del_timer(timer);
                 }
             } 
             
             else if(events[i].events & EPOLLOUT) {
+                printf("4\n");
                 // 先创建一个定时器对象，便于后续定时处理
-                util_timer *timer = users_timer[i].timer;
+                util_timer *timer = users_timer[sockfd].timer;
                 // 处理客户连接写入的数据
                 if (users[sockfd].write()) {
                     LOG_INFO("send data to the client(%s)", inet_ntoa(users[sockfd].get_address()->sin_addr));
@@ -313,7 +321,7 @@ int main(int argc, char *argv[]) {
                     }
                 } else {
                     // 如果写入数据失败，服务器端关闭连接，并移除对应的定时器
-                    users[sockfd].close_conn();
+                    // 改动6 users[sockfd].close_conn();
                     timer->cb_func(&users_timer[sockfd]);
                     if (timer) timer_lst.del_timer(timer);
                 }
@@ -323,6 +331,7 @@ int main(int argc, char *argv[]) {
         // 在for循环遍历所有发生变化的文件描述符后，处理定时器超时事件，由于是非必要事件
         // 收到信号并不马上处理，而是在处理完所有读写事件后再进行处理
         if (timeout) {
+            printf("5\n");
             timer_handler();
             timeout = false;
         }
@@ -331,8 +340,8 @@ int main(int argc, char *argv[]) {
     // 收尾工作，关闭所有已经建立的文件描述符，释放各种数组空间
     close(epollfd);
     close(listenfd);
-    close(pipefd[0]);
     close(pipefd[1]);
+    close(pipefd[0]);
     delete[] users;
     delete[] users_timer;
     delete pool;

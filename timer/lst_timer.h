@@ -115,6 +115,7 @@ public:
     void tick() {
         if (!head) return ;
 
+        printf( "timer tick\n" );
         // 记入日志
         LOG_INFO("%s", "timer tick");
         Log::get_instance()->flush();
@@ -132,7 +133,7 @@ public:
                 // 释放tmp节点，并继续遍历执行超时判断
                 delete tmp;
                 tmp = head;
-            }
+            } else break;   // 改动2 否则尚未超时，退出循环
         }
     }
 

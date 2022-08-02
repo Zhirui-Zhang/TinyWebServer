@@ -35,7 +35,8 @@ public:
     // 析构函数，注意都要上锁，保证线程之间同步
     ~block_queue() {
         m_mutex.lock();
-        if (!m_array) delete[] m_array;
+        // 改动1
+        if (m_array) delete[] m_array;
         m_mutex.unlock();
     }
 
@@ -89,7 +90,7 @@ public:
     int size() {
         int tmp = 0;
         m_mutex.lock();
-        tmp = m_size();
+        tmp = m_size;
         m_mutex.unlock();
         return tmp;
     }
@@ -97,7 +98,7 @@ public:
     int max_size() {
         int tmp = 0;
         m_mutex.lock();
-        tmp = m_max_size();
+        tmp = m_max_size;
         m_mutex.unlock();
         return tmp;
     }
@@ -112,7 +113,7 @@ public:
             return false;
         }
         // 将新产品放入 (m_back + 1) % m_maxsize 处后，广播通知消费者进行消费
-        m_back = (m_back + 1) % m_maxsize;
+        m_back = (m_back + 1) % m_max_size;
         m_array[m_back] = item;
         ++m_size;
         m_cond.broadcast();
@@ -126,7 +127,8 @@ public:
         // 注意当队列为空时，需要while循环等待pthread_cond_wait，而不是if判断
         // 否则可能有一个生产资源唤醒多个线程，后唤醒的线程已经没有资源可用，却继续执行，导致出错
         while (m_size <= 0) {
-            if (!m_cond.wait(&m_mutex)) {
+            // 注意这里不能直接写 m_cond.wait(&m_mutex) 因为m_mutex是个locker类，并不是wait函数需要的mutex互斥锁，所以要在locker中再加一个成员函数
+            if (!m_cond.wait(m_mutex.get())) {
                 // 如果信号量函数返回false，说明出错，解锁互斥锁，返回false
                 m_mutex.unlock();
                 return false;
@@ -134,7 +136,7 @@ public:
         }
         // 若当前线程获得竞争生产资源的机会，从头部(m_front + 1) % m_maxsize处取出资源
         // 注意m_front初始为-1，表示待取出资源的前一个位置
-        m_front = (m_front + 1) % m_maxsize;
+        m_front = (m_front + 1) % m_max_size;
         item = m_array[m_front];
         --m_size;
         m_mutex.unlock();

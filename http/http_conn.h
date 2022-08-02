@@ -43,8 +43,17 @@ public:
 
 public:
     // 下面定义了init和close_http函数用于类的初始化和关闭，故ctor和dtor只是声明，没有实际用处
-    http_conn();
-    ~http_conn();
+    // ！！！注意这里原来写成 http_conn(); 的时候编译会报错，改成 http_conn() {}就没事了，我？？？黑人问号也就是如果声明了ctor/dtor后面就要定义？否则会报错
+    /*
+    main.cpp:(.text+0x53f)：对‘http_conn::http_conn()’未定义的引用
+    main.cpp:(.text+0x10e5)：对‘http_conn::~http_conn()’未定义的引用
+    main.cpp:(.text+0x1295)：对‘http_conn::~http_conn()’未定义的引用
+    collect2: error: ld returned 1 exit status
+    Makefile:2: recipe for target 'server' failed
+    make: *** [server] Error 1
+    */
+    http_conn() {}
+    ~http_conn() {}
 
 public:
     // 初始化套接字地址，内部会调用私有成员函数init()

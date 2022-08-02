@@ -1,6 +1,4 @@
 make all --print-data-base --no-builtin-variables --no-builtin-rules --question
-make: *** No rule to make target 'all'.  Stop.
-
 # GNU Make 4.1
 # Built for x86_64-pc-linux-gnu
 # Copyright (C) 1988-2014 Free Software Foundation, Inc.
@@ -8,7 +6,7 @@ make: *** No rule to make target 'all'.  Stop.
 # This is free software: you are free to change and redistribute it.
 # There is NO WARRANTY, to the extent permitted by law.
 
-# Make data base, printed on Sun Jul 31 14:30:48 2022
+# Make data base, printed on Tue Aug  2 19:49:09 2022
 
 # Variables
 
@@ -49,7 +47,7 @@ LESSOPEN = | /usr/bin/lesspipe %s
 # environment
 VSCODE_CWD = /home/zzr
 # environment
-SSH_CONNECTION = 192.168.75.1 57184 192.168.75.130 22
+SSH_CONNECTION = 192.168.75.1 53844 192.168.75.130 22
 # environment
 PATH = /home/zzr/.vscode-server/bin/3b889b090b5ad5793f524b5d1d39fda662b96a2a/bin/remote-cli:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:/usr/games:/usr/local/games:/snap/bin
 # environment
@@ -65,7 +63,7 @@ LS_COLORS =
 # environment
 PWD = /home/zzr/TinyWebServer
 # environment
-VSCODE_IPC_HOOK_CLI = /run/user/1000/vscode-ipc-d9dc6ca2-56d0-4434-aacd-795837b217c2.sock
+VSCODE_IPC_HOOK_CLI = /run/user/1000/vscode-ipc-ae3cb6fa-2ae9-4e21-b34e-29536a0f5939.sock
 # automatic
 *D = $(patsubst %/,%,$(dir $*))
 # environment
@@ -95,11 +93,11 @@ MAKECMDGOALS := all
 # environment
 SHLVL = 3
 # environment
-XDG_SESSION_ID = 2
+XDG_SESSION_ID = 4
 # environment
 USER = zzr
 # makefile
-.DEFAULT_GOAL := 
+.DEFAULT_GOAL := server
 # automatic
 %D = $(patsubst %/,%,$(dir $%))
 # default
@@ -115,7 +113,7 @@ MAKEFLAGS = pqrR
 # environment
 MFLAGS = -pqrR
 # environment
-SSH_CLIENT = 192.168.75.1 57184 22
+SSH_CLIENT = 192.168.75.1 53844 22
 # environment
 MAIL = /var/mail/zzr
 # automatic
@@ -143,7 +141,7 @@ MAKE_HOST := x86_64-pc-linux-gnu
 # environment
 LANG = C
 # variable set hash-table stats:
-# Load=65/1024=6%, Rehash=0, Collisions=8/89=9%
+# Load=65/1024=6%, Rehash=0, Collisions=8/90=9%
 
 # Pattern-specific Variable Values
 
@@ -162,6 +160,12 @@ LANG = C
 # Files
 
 # Not a target:
+lock/locker.h:
+#  Implicit rule search has not been done.
+#  Modification time never checked.
+#  File has not been updated.
+
+# Not a target:
 all:
 #  Command line target.
 #  Implicit rule search has been done.
@@ -169,11 +173,60 @@ all:
 #  File has not been updated.
 
 # Not a target:
+http/http_conn.h:
+#  Implicit rule search has not been done.
+#  Modification time never checked.
+#  File has not been updated.
+
+# Not a target:
+http/http_conn.cpp:
+#  Implicit rule search has not been done.
+#  Modification time never checked.
+#  File has not been updated.
+
+# Not a target:
 Makefile:
 #  Implicit rule search has been done.
-#  Last modified 2022-07-18 16:18:36.007272385
+#  Last modified 2022-07-31 15:45:58.742889822
 #  File has been updated.
 #  Successfully updated.
+
+# Not a target:
+CGI_MySQL/sql_connection_pool.h:
+#  Implicit rule search has not been done.
+#  Modification time never checked.
+#  File has not been updated.
+
+server: main.cpp threadpool/threadpool.h http/http_conn.h http/http_conn.cpp lock/locker.h log/block_queue.h log/log.h log/log.cpp CGI_MySQL/sql_connection_pool.h CGI_MySQL/sql_connection_pool.cpp
+#  Implicit rule search has not been done.
+#  Modification time never checked.
+#  File has not been updated.
+#  recipe to execute (from 'Makefile', line 2):
+	g++ -o server main.cpp ./threadpool/threadpool.h ./http/http_conn.h ./http/http_conn.cpp ./lock/locker.h ./log/block_queue.h ./log/log.h ./log/log.cpp ./CGI_MySQL/sql_connection_pool.h ./CGI_MySQL/sql_connection_pool.cpp -lpthread -lmysqlclient
+
+# Not a target:
+log/log.h:
+#  Implicit rule search has not been done.
+#  Modification time never checked.
+#  File has not been updated.
+
+# Not a target:
+CGI_MySQL/sql_connection_pool.cpp:
+#  Implicit rule search has not been done.
+#  Modification time never checked.
+#  File has not been updated.
+
+# Not a target:
+main.cpp:
+#  Implicit rule search has not been done.
+#  Modification time never checked.
+#  File has not been updated.
+
+# Not a target:
+log/log.cpp:
+#  Implicit rule search has not been done.
+#  Modification time never checked.
+#  File has not been updated.
 
 # Not a target:
 .DEFAULT:
@@ -181,20 +234,41 @@ Makefile:
 #  Modification time never checked.
 #  File has not been updated.
 
+clean:
+#  Implicit rule search has not been done.
+#  Modification time never checked.
+#  File has not been updated.
+#  recipe to execute (from 'Makefile', line 4):
+	rm -r server
+
+# Not a target:
+log/block_queue.h:
+#  Implicit rule search has not been done.
+#  Modification time never checked.
+#  File has not been updated.
+
+# Not a target:
+threadpool/threadpool.h:
+#  Implicit rule search has not been done.
+#  Modification time never checked.
+#  File has not been updated.
+
 # files hash-table stats:
-# Load=4/1024=0%, Rehash=0, Collisions=0/14=0%
+# Load=16/1024=2%, Rehash=0, Collisions=0/36=0%
 # VPATH Search Paths
 
 # No 'vpath' search paths.
 
 # No general ('VPATH' variable) search path.
 
-# strcache buffers: 1 (0) / strings = 19 / storage = 147 B / avg = 7 B
-# current buf: size = 8162 B / used = 147 B / count = 19 / avg = 7 B
+# strcache buffers: 1 (0) / strings = 30 / storage = 340 B / avg = 11 B
+# current buf: size = 8162 B / used = 340 B / count = 30 / avg = 11 B
 
-# strcache performance: lookups = 23 / hit rate = 17%
+# strcache performance: lookups = 37 / hit rate = 18%
 # hash-table stats:
-# Load=19/8192=0%, Rehash=0, Collisions=1/23=4%
-# Finished Make data base on Sun Jul 31 14:30:48 2022
+# Load=30/8192=0%, Rehash=0, Collisions=1/37=3%
+# Finished Make data base on Tue Aug  2 19:49:09 2022
 
  
+make: *** No rule to make target 'all'.  Stop.
+

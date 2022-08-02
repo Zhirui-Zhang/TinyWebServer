@@ -133,7 +133,7 @@ void http_conn::init() {
 }
 
 // 关闭当前http连接，从静态成员m_epollfd中删除当前socketfd连接，注意并不是真正移除，直接将sockfd置-1，并将用户数-1
-void http_conn::close_conn(bool real_close = true) {
+void http_conn::close_conn(bool real_close) {
     // 调用之前的removefd函数
     if (real_close && m_sockfd != -1) {
         removefd(m_epollfd, m_sockfd);
@@ -541,7 +541,8 @@ http_conn::HTTP_CODE http_conn::do_request() {
     // 2 3分别为登录和注册校验页面，单独讨论
     if (m_cgi == 1 && (*(p + 1) == '2' || *(p + 1) == '3')) {
         // 定义一个字符串，用来表示m_real_file后的尾缀
-        char *real_url = "/";
+        char *real_url = NULL;
+        strcpy(real_url, "/");
         strcat(real_url, m_url + 2);
         strcat(m_real_file, real_url);
 

@@ -36,8 +36,9 @@ private:
     connection_pool *m_connPool;    // 指向数据库池的数组
 };
 
+// 注意这里报错了，因为在构造函数的形参列表中不能再有默认参数 int thread_number = 8, int max_request = 10000 了
 template<typename T>
-threadpool<T>::threadpool(connection_pool *connPool, int thread_number = 8, int max_request = 10000) : 
+threadpool<T>::threadpool(connection_pool *connPool, int thread_number, int max_request) : 
 m_connPool(connPool), m_thread_number(thread_number), m_max_request(max_request), m_threads(NULL), m_stop(false) {
     if (m_thread_number <= 0 || m_max_request <= 0) throw exception();
     // 初始化线程池数组，大小为m_thread_number，如果为NULL，抛出错误
@@ -46,7 +47,8 @@ m_connPool(connPool), m_thread_number(thread_number), m_max_request(max_request)
     // 循环创建线程，工作函数设为worker，参数传入成员对象this指针，随后将工作线程分离，不必对线程单独进行回收
     for (int i = 0; i < m_thread_number; ++i) {
         printf("create the %dth thread\n", i);
-        if (pthread_create(m_threads[i], NULL, worker, this) != 0) {
+        // 注意这里不能写成 m_threads[i] 不存在这种转换形式，会报错
+        if (pthread_create(m_threads + i, NULL, worker, this) != 0) {
             // 注意当创建/分离出错时，要释放线程池空间，避免内存泄漏
             delete[] m_threads;
             throw exception();
@@ -70,6 +72,8 @@ bool threadpool<T>::append(T *request) {
     m_queuelocker.lock();
     if (m_workqueue.size() >= m_max_request) {
         printf("Workqueue is full now, please wait\n");
+        // 改动1
+        m_queuelocker.unlock();
         return false;
     }
     // 加入新的任务后解锁，并将信号量+1，提示有任务需要处理
@@ -108,11 +112,17 @@ void threadpool<T>::run() {
         m_queuelocker.unlock();
         // 若request为空，继续循环，否则取出数据库池中的一个连接
         if (!request) continue;
-        request->mysql = m_connPool->GetConnection();
-        // 执行执行http中的process函数
+
+        // 改动2 这里网站上代码好像和源代码不一样
+        connectionRAII mysqlcon(&request->m_mysql, m_connPool);
+        
         request->process();
-        // 执行后将数据库连接放回数据库池中
-        m_connPool->ReleaseConnection(request->mysql);
+
+        // request->m_mysql = m_connPool->GetConnection();
+        // // 执行执行http中的process函数
+        // request->process();
+        // // 执行后将数据库连接放回数据库池中
+        // m_connPool->ReleaseConnection(request->m_mysql);
     }
 }
 
