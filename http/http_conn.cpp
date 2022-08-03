@@ -108,6 +108,9 @@ void modfd(int epollfd, int fd, int ev) {
 void http_conn::init(int sockfd, const sockaddr_in &addr) {
     m_sockfd = sockfd;
     m_address = addr;
+    // 改动1
+    addfd(m_epollfd, sockfd, true);
+    ++m_user_count;
     init();
 }
 // 私有成员函数init()
@@ -216,41 +219,65 @@ bool http_conn::write() {
         // 将响应报文的状态行、消息头、空行和响应正文发送给浏览器端
         tmp = writev(m_sockfd, m_iv, m_iv_count);
         
-        if (tmp > 0) {
-            // 更新已发送字节
-            m_bytes_have_sent += tmp;
-            // 偏移iovec指针，可能为负，m_write_idx仅仅是m_iv[0]的响应报文的长度，不包括文件正文长度
-            new_add = m_bytes_have_sent - m_write_idx;
-        } else if (tmp == -1) {
-            // 如果返回-1，可能是主线程的写缓冲区写满了，此时更新iovec结构体的指针和长度，并重新注册写事件
-            // 等待主线程中下一次写事件触发（当写缓冲区从不可写变为可写，触发epollout）
-            // 因此在此期间无法立即接收到同一用户的下一请求，但可以保证连接的完整性。
-            if (errno = EAGAIN) {
-                if (m_bytes_have_sent >= m_iv[0].iov_len) {
-                    // 说明主线程缓冲区满时，子线程的响应报文部分已经发送完了
-                    // 再次响应写事件时需要接着发送内存映射文件的数据
-                    m_iv[0].iov_len = 0;
-                    m_iv[1].iov_base = m_file_address + new_add;
-                    m_iv[1].iov_len = m_bytes_to_send;
-                } else {
-                    // 此时说明主线程缓冲区满时，子线程的响应报文部分还未发送完，new_add是负数
-                    // 再次响应写事件时需要接着发送响应报文的部分
-                    // 其实这个不太可能发生，因为响应报文就那么几句话，大部分情况是内存映射文件过大，一次性写不完，导致主线程缓冲区满
-                    m_iv[0].iov_base = m_write_buf + m_bytes_have_sent;
-                    m_iv[0].iov_len = m_write_idx - m_bytes_have_sent;
-                }
-                // 重新注册写事件，返回true
+        // 改动4 下面有部分改动
+
+        if (tmp < 0) {
+            if (errno == EAGAIN) {
                 modfd(m_epollfd, m_sockfd, EPOLLOUT);
                 return true;
-            } else {
-                // 若不是缓冲区已满，说明发送失败，取消映射，返回false
-                unmap();
-                return false;
             }
+            unmap();
+            return false;
         }
 
-        // 更新待发送的字节数
+        m_bytes_have_sent += tmp;
         m_bytes_to_send -= tmp;
+
+        if (m_bytes_have_sent >= m_iv[0].iov_len) {
+            m_iv[0].iov_len = 0;
+            m_iv[1].iov_base = m_file_address + (m_bytes_have_sent - m_write_idx);
+            m_iv[1].iov_len = m_bytes_to_send;
+        } else {
+            m_iv[0].iov_base = m_write_buf + m_bytes_have_sent;
+            m_iv[0].iov_len = m_iv[0].iov_len - m_bytes_have_sent;
+        }
+
+        // if (tmp > 0) {
+        //     // 更新已发送字节
+        //     m_bytes_have_sent += tmp;
+        //     // 偏移iovec指针，可能为负，m_write_idx仅仅是m_iv[0]的响应报文的长度，不包括文件正文长度
+        //     new_add = m_bytes_have_sent - m_write_idx;
+        // } else if (tmp == -1) {
+        //     // 如果返回-1，可能是主线程的写缓冲区写满了，此时更新iovec结构体的指针和长度，并重新注册写事件
+        //     // 等待主线程中下一次写事件触发（当写缓冲区从不可写变为可写，触发epollout）
+        //     // 因此在此期间无法立即接收到同一用户的下一请求，但可以保证连接的完整性。
+        //     if (errno == EAGAIN) {
+        //         if (m_bytes_have_sent >= m_iv[0].iov_len) {
+        //             // 说明主线程缓冲区满时，子线程的响应报文部分已经发送完了
+        //             // 再次响应写事件时需要接着发送内存映射文件的数据
+        //             m_iv[0].iov_len = 0;
+        //             m_iv[1].iov_base = m_file_address + new_add;
+        //             m_iv[1].iov_len = m_bytes_to_send;
+        //         } else {
+        //             // 此时说明主线程缓冲区满时，子线程的响应报文部分还未发送完，new_add是负数
+        //             // 再次响应写事件时需要接着发送响应报文的部分
+        //             // 其实这个不太可能发生，因为响应报文就那么几句话，大部分情况是内存映射文件过大，一次性写不完，导致主线程缓冲区满
+        //             m_iv[0].iov_base = m_write_buf + m_bytes_have_sent;
+        //             m_iv[0].iov_len = m_write_idx - m_bytes_have_sent;
+        //         }
+        //         // 重新注册写事件，返回true
+        //         modfd(m_epollfd, m_sockfd, EPOLLOUT);
+        //         return true;
+        //     } else {
+        //         // 若不是缓冲区已满，说明发送失败，取消映射，返回false
+        //         unmap();
+        //         return false;
+        //     }
+        // }
+
+        // // 更新待发送的字节数
+        // m_bytes_to_send -= tmp;
+
         // 如果m_iv缓冲区全部发送完，取消映射，重新注册事件，并根据m_linger是否保持连接
         if (m_bytes_to_send <= 0) {
             unmap();
@@ -313,6 +340,10 @@ http_conn::HTTP_CODE http_conn::process_read() {
         // m_start_line是每一个数据行在m_read_buf中的起始位置，读取一行后需要更新
         // m_checked_idx表示从状态机在m_read_buf中已经读取的位置，理论上checked_idx > start_line
         m_start_line = m_checked_idx;
+
+        // 改动3
+        LOG_INFO("process_read:%s", text);
+        Log::get_instance()->flush();
 
         // 主状态机的三种状态转换
         switch (m_check_state)
@@ -418,6 +449,8 @@ bool http_conn::process_write(HTTP_CODE res) {
     // 结构体iovec中的iov_len表示数据的长度
     m_iv[0].iov_len = m_write_idx;
     m_iv_count = 1;
+    // 改动6
+    m_bytes_to_send = m_write_idx;
     return true;
 }
 
@@ -435,7 +468,8 @@ http_conn::HTTP_CODE http_conn::parse_request_line(char *text) {
     // 直接截取text中第一个\0的位置，比较是哪种请求方法
     char* method = text;
     if (strcasecmp(method, "GET") == 0) m_method = GET;
-    else if (strcasecmp(method, "GET") == 0) {
+    // 改动2
+    else if (strcasecmp(method, "POST") == 0) {
         m_method = POST;
         m_cgi = 1;
     }
@@ -523,6 +557,7 @@ http_conn::HTTP_CODE http_conn::parse_content(char *text) {
         // 将请求体的最后一位置为\0，此时text中存储用户的账号和密码信息，放入m_user_data成员变量中
         text[m_content_length] = '\0';
         m_user_data = text;
+        printf("%s\n", m_user_data);
         // 交到do_request函数中
         return GET_REQUEST;
     }
@@ -534,17 +569,20 @@ http_conn::HTTP_CODE http_conn::do_request() {
     // 复制文件的位置为根目录地址并记录长度
     strcpy(m_real_file, doc_root);
     int len = strlen(m_real_file);
-
+    printf("m_url:%s\n", m_url);
     // strrchr函数是找到 / 在 m_url中出现的最后一次位置，后面就是要访问的资源页面
     const char *p = strrchr(m_url, '/');
 
     // 2 3分别为登录和注册校验页面，单独讨论
     if (m_cgi == 1 && (*(p + 1) == '2' || *(p + 1) == '3')) {
         // 定义一个字符串，用来表示m_real_file后的尾缀
-        char *real_url = NULL;
+        // 改动7
+        char *real_url = (char *)malloc(sizeof(char) * 200);
         strcpy(real_url, "/");
         strcat(real_url, m_url + 2);
-        strcat(m_real_file, real_url);
+        // strcat(m_real_file, real_url);
+        strncpy(m_real_file + len, real_url, FILENAME_LEN - len - 1);
+        free(real_url);
 
         // 将用户名和密码提取出来
         // 格式：  user=123&password=456
@@ -564,8 +602,9 @@ http_conn::HTTP_CODE http_conn::do_request() {
         // 同步线程登录校验
         if (*(p + 1) == '3') {
             // 如果是注册校验，先检查是否有重名，若没有，再进行注册
-            char *sql_insert = NULL;
-            strcat(sql_insert, "INSERT INTO user(name, password) VALUES (");
+            // 改动8，username写成user了，艹
+            char *sql_insert = (char *)malloc(sizeof(char) * 200);;
+            strcat(sql_insert, "INSERT INTO user(username, password) VALUES (");
             strcat(sql_insert, "'");        // 加个单引号增加搜索效率？
             strcat(sql_insert, name);
             strcat(sql_insert, "', '");
@@ -576,20 +615,18 @@ http_conn::HTTP_CODE http_conn::do_request() {
                 // 用户不存在，加锁注册用户，保证同步
                 m_lock.lock();
                 // 说实话感觉下面这个判断有点鸡肋，执行insert语句，若失败返回非0值
+                // 改动9 woc这里没加斜杠 淦
                 int res = mysql_query(m_mysql, sql_insert);
-                if (res) {
-                    // insert语句插入失败
-                    m_lock.unlock();
-                    strcpy(m_url, "registerError.html");
-                } else {
-                    // 插入成功，更新users map映射
-                    users[name] = password;
-                    m_lock.unlock();
-                    strcpy(m_url, "log.html");
-                }
+                users[name] = password;
+                m_lock.unlock();
+
+                // insert语句插入失败
+                if (res) strcpy(m_url, "/registerError.html");
+                // 插入成功
+                else strcpy(m_url, "/log.html");
             } else {
                 // 用户已存在，注册失败
-                strcpy(m_url, "registerError.html");
+                strcpy(m_url, "/registerError.html");
             }
 
         } else if (*(p + 1) == '2') {
@@ -597,7 +634,7 @@ http_conn::HTTP_CODE http_conn::do_request() {
             if (users.find(name) != users.end() && users[name] == password) {
                 strcpy(m_url, "/welcome.html");
             } else {
-                strcpy(m_url, "logError.html");
+                strcpy(m_url, "/logError.html");
             }
         }
     }
@@ -614,7 +651,7 @@ http_conn::HTTP_CODE http_conn::do_request() {
     // 通过stat获取请求资源文件信息，成功则将信息更新到m_file_stat结构体
     // 如果函数返回值 < 0，说明资源文件不存在，返回，如果不可读，返回，如果是文件夹，返回
     if (stat(m_real_file, &m_file_stat) < 0) return NO_RESOURCE;   
-    if (m_file_stat.st_mode & S_IROTH == 0) return FORBIDDEN_REQUEST;
+    if ((m_file_stat.st_mode & S_IROTH) == 0) return FORBIDDEN_REQUEST;
     if (S_ISDIR(m_file_stat.st_mode)) return BAD_REQUEST;
 
     // 确认一切正常后，通过只读方式打开该文件，映射到内存区，注意要把void*返回类型转换为char*，最后关闭文件描述符
@@ -682,7 +719,8 @@ bool http_conn::add_response(const char *format, ...) {
     va_start(arg_list, format);
     // 调用vsnprintf，功能和snprintf相同，都是输出长度size的字符到m_write_buf中，只不过vsnprintf可输出可变参数列表
     // size是当前写缓冲区的剩余空间，WRITE_BUFFER_SIZE - m_write_idx - 1
-    int len = vsnprintf(m_write_buf, WRITE_BUFFER_SIZE - m_write_idx - 1, format, arg_list);
+    // 改动5
+    int len = vsnprintf(m_write_buf + m_write_idx, WRITE_BUFFER_SIZE - m_write_idx - 1, format, arg_list);
     if (len >= WRITE_BUFFER_SIZE - m_write_idx - 1) {
         // 如果输出长度大于size，返回false
         va_end(arg_list);
@@ -691,7 +729,7 @@ bool http_conn::add_response(const char *format, ...) {
     // 记得更新写位置
     m_write_idx += len;
     va_end(arg_list);
-    LOG_INFO("request:%s", m_write_buf);
+    LOG_INFO("add_response:%s", m_write_buf);
     Log::get_instance()->flush();
     return true;
 }
@@ -703,8 +741,13 @@ bool http_conn::add_status_line(int status, const char *title) {
 
 // 添加响应报文状态头部，由于头部包含不同信息，封装到一个函数中，个人改写了一下
 bool http_conn::add_headers(int content_length) {
-    if (!add_content_length(content_length) || !add_linger() || 
-        !add_content_type() || !add_blank_line()) return false;
+    // 改动5
+    add_content_length(content_length);
+    add_linger();
+    add_content_type();
+    add_blank_line();
+    // if (!add_content_length(content_length) || !add_linger() || 
+    //     !add_content_type() || !add_blank_line()) return false;
     return true;    
 }
 

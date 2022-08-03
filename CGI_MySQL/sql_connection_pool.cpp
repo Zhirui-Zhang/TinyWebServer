@@ -96,16 +96,25 @@ int connection_pool::GetFreeConn() {
 // 销毁所有连接，利用mysql_close函数，记得最后把cur和free变量置0，同时调用list的clear函数
 void connection_pool::DestroyPool() {
     m_mutex.lock();
-    if (m_conn_list.size() == 0) {
+    // 改动2
+    // if (m_conn_list.size() == 0) {
+    //     m_mutex.unlock();
+    //     return ;
+    // }
+    if (m_conn_list.size() > 0) {
+        for (auto it = m_conn_list.begin(); it != m_conn_list.end(); ++it) {
+            MYSQL *conn = *it;
+            mysql_close(conn);
+        }
+        // for (auto& conn : m_conn_list) {
+        //     mysql_close(conn);
+        // }
+        m_cur_conn = 0;
+        m_free_conn = 0;
+        m_conn_list.clear();
         m_mutex.unlock();
-        return ;
     }
-    for (auto& conn : m_conn_list) {
-        mysql_close(conn);
-    }
-    m_cur_conn = 0;
-    m_free_conn = 0;
-    m_conn_list.clear();
+    
     m_mutex.unlock();
 }   
 
