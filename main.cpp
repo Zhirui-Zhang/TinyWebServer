@@ -188,7 +188,7 @@ int main(int argc, char *argv[]) {
                 socklen_t client_addr_len = sizeof(client_address);
 
 #ifdef listenfdLT
-                int connfd = accept(sockfd, (struct sockaddr* )&client_address, &client_addr_len);
+                int connfd = accept(listenfd, (struct sockaddr* )&client_address, &client_addr_len);
                 if (connfd < 0) {
                     // 返回connfd出错，写入日志
                     LOG_ERROR("%s: errno is: %d", "accept error", errno);
@@ -246,7 +246,6 @@ int main(int argc, char *argv[]) {
             } 
 
             else if (events[i].events & (EPOLLRDHUP | EPOLLHUP | EPOLLERR)) {
-                printf("1\n");
                 // 处理异常事件，即发生变化的内核事件包括EPOLLRDHUP | EPOLLHUP | EPOLLERR事件
                 // 服务器端关闭连接，并移除对应的定时器
                 // 改动2 users[sockfd].close_conn();
@@ -256,7 +255,6 @@ int main(int argc, char *argv[]) {
             } 
             
             else if ((sockfd == pipefd[0]) && (events[i].events & EPOLLIN)) {
-                printf("2\n");
                 // 处理定时器信号
                 int sig = 0;
                 char signals[1024];
@@ -271,7 +269,6 @@ int main(int argc, char *argv[]) {
             } 
             
             else if (events[i].events & EPOLLIN) {
-                printf("3\n");
                 // 先创建一个定时器对象，便于后续定时处理
                 // 改动3
                 util_timer *timer = users_timer[sockfd].timer;
@@ -303,7 +300,6 @@ int main(int argc, char *argv[]) {
             } 
             
             else if(events[i].events & EPOLLOUT) {
-                printf("4\n");
                 // 先创建一个定时器对象，便于后续定时处理
                 util_timer *timer = users_timer[sockfd].timer;
                 // 处理客户连接写入的数据
@@ -331,7 +327,6 @@ int main(int argc, char *argv[]) {
         // 在for循环遍历所有发生变化的文件描述符后，处理定时器超时事件，由于是非必要事件
         // 收到信号并不马上处理，而是在处理完所有读写事件后再进行处理
         if (timeout) {
-            printf("5\n");
             timer_handler();
             timeout = false;
         }

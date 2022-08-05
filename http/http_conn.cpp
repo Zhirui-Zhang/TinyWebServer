@@ -151,6 +151,7 @@ void http_conn::process() {
     // 如果返回NO_REQUEST，说明请求不完整，需要继续读取数据
     if (read_res == NO_REQUEST) {
         // 向内核事件表中注册并监听读事件
+        printf("No request\n");
         modfd(m_epollfd, m_sockfd, EPOLLIN);
         return;
     }
@@ -557,7 +558,7 @@ http_conn::HTTP_CODE http_conn::parse_content(char *text) {
         // 将请求体的最后一位置为\0，此时text中存储用户的账号和密码信息，放入m_user_data成员变量中
         text[m_content_length] = '\0';
         m_user_data = text;
-        printf("%s\n", m_user_data);
+        printf("m_user_data: %s\n", m_user_data);
         // 交到do_request函数中
         return GET_REQUEST;
     }
@@ -568,21 +569,22 @@ http_conn::HTTP_CODE http_conn::parse_content(char *text) {
 http_conn::HTTP_CODE http_conn::do_request() {
     // 复制文件的位置为根目录地址并记录长度
     strcpy(m_real_file, doc_root);
-    int len = strlen(m_real_file);
-    printf("m_url:%s\n", m_url);
+    printf("m_real_file: %s\n", m_real_file);
+    // 改动8
+    int len = strlen(doc_root);
+    printf("m_url: %s\n", m_url);
     // strrchr函数是找到 / 在 m_url中出现的最后一次位置，后面就是要访问的资源页面
     const char *p = strrchr(m_url, '/');
 
     // 2 3分别为登录和注册校验页面，单独讨论
     if (m_cgi == 1 && (*(p + 1) == '2' || *(p + 1) == '3')) {
         // 定义一个字符串，用来表示m_real_file后的尾缀
-        // 改动7
-        char *real_url = (char *)malloc(sizeof(char) * 200);
-        strcpy(real_url, "/");
-        strcat(real_url, m_url + 2);
-        // strcat(m_real_file, real_url);
-        strncpy(m_real_file + len, real_url, FILENAME_LEN - len - 1);
-        free(real_url);
+        // 改动7 源代码里面下面这几句话纯属坑人，real_url变量一点用都没有，还给m_real_file后面加了个CGISQL.cgi
+        // char *real_url = (char *)malloc(sizeof(char) * 200);
+        // strcpy(real_url, "/");
+        // strcat(real_url, m_url + 2);
+        // strncpy(m_real_file + len, real_url, FILENAME_LEN - len - 1);
+        // free(real_url);
 
         // 将用户名和密码提取出来
         // 格式：  user=123&password=456
@@ -598,13 +600,15 @@ http_conn::HTTP_CODE http_conn::do_request() {
             password[j] = m_user_data[i];
         }
         password[j] = '\0';
+        printf("user: %s, password: %s\n", name, password);
 
         // 同步线程登录校验
         if (*(p + 1) == '3') {
             // 如果是注册校验，先检查是否有重名，若没有，再进行注册
             // 改动8，username写成user了，艹
-            char *sql_insert = (char *)malloc(sizeof(char) * 200);;
-            strcat(sql_insert, "INSERT INTO user(username, password) VALUES (");
+            char *sql_insert = (char *)malloc(sizeof(char) * 200);
+            // 改动9 这里第一个把strcat改成strcpy！
+            strcpy(sql_insert, "INSERT INTO user(username, password) VALUES (");
             strcat(sql_insert, "'");        // 加个单引号增加搜索效率？
             strcat(sql_insert, name);
             strcat(sql_insert, "', '");
@@ -631,12 +635,14 @@ http_conn::HTTP_CODE http_conn::do_request() {
 
         } else if (*(p + 1) == '2') {
             // 如果是登录校验，直接在已有的users即map集合中进行查找，并返回对应的页面
-            if (users.find(name) != users.end() && users[name] == password) {
-                strcpy(m_url, "/welcome.html");
-            } else {
-                strcpy(m_url, "/logError.html");
-            }
+            if (users.find(name) != users.end() && users[name] == password) strcpy(m_url, "/welcome.html");
+            else strcpy(m_url, "/logError.html");
         }
+        printf("%s\n", m_real_file);
+        // 注意要把新的m_url接到m_real_file后面！！！同时注意要用strncpy函数，而不是单纯的strcat拼接 （其实改过之后直接拼接也是可以的）
+        // 因为此时m_real_file会变成/home/zzr/TinyWebServer/root/CGISQL.cgi，直接拼接m_url会导致文件错误！！！终于找到了
+        // strncpy(m_real_file + len, m_url, FILENAME_LEN - len - 1);
+        strcat(m_real_file, m_url);
     }
 
     // 其他情况把网站目录和m_real_file进行拼接
@@ -646,11 +652,14 @@ http_conn::HTTP_CODE http_conn::do_request() {
     else if (*(p + 1) == '6') strcat(m_real_file, "/video.html");
     else if (*(p + 1) == '7') strcat(m_real_file, "/fans.html");
     // 如果以上情况都不符合，将m_real_file与m_url进行拼接，这里的情况是welcome界面，请求服务器上的一个图片
+    
+    // 我特喵的终于找到mysql失败的罪魁祸首了！！！这里连续的if else导致并没有把当 *(p + 1) == '2'/'3' 时的 m_url 接到m_real_file后面，把它放在 2/3 里面就行，淦
     else strcat(m_real_file, m_url);
 
+    printf("%s\n", m_real_file);
     // 通过stat获取请求资源文件信息，成功则将信息更新到m_file_stat结构体
     // 如果函数返回值 < 0，说明资源文件不存在，返回，如果不可读，返回，如果是文件夹，返回
-    if (stat(m_real_file, &m_file_stat) < 0) return NO_RESOURCE;   
+    if (stat(m_real_file, &m_file_stat) < 0) return NO_RESOURCE;
     if ((m_file_stat.st_mode & S_IROTH) == 0) return FORBIDDEN_REQUEST;
     if (S_ISDIR(m_file_stat.st_mode)) return BAD_REQUEST;
 
