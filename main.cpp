@@ -24,7 +24,7 @@
 // #define ASYNLOG  异步写日志
 
 #define listenfdLT      // 监听文件描述符水平触发 （阻塞）
-// define listenfdET    // 监听文件描述符边缘触发（非阻塞）
+// #define listenfdET    // 监听文件描述符边缘触发（非阻塞）
 
 // 以下三个函数在http_conn.cpp中定义了，这里显式声明一下
 extern int setnonblocking(int fd);
