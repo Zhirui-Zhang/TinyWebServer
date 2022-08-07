@@ -12,6 +12,7 @@
         "sstream": "cpp",
         "list": "cpp",
         "string": "cpp",
-        "iostream": "cpp"
+        "iostream": "cpp",
+        "map": "cpp"
     }
 }
