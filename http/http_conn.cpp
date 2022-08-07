@@ -52,19 +52,24 @@ void addfd(int epollfd, int fd, bool one_shot) {
     event.data.fd = fd;
 
 // 根据不同触发方式，决定是否 | EPOLLET，而EPOLLRDHUP用来判断对端是否关闭
-#ifdef listenfdLT   
-    event.events = EPOLLIN | EPOLLRDHUP;
-#endif
-
-#ifdef listenfdET
-    event.events = EPOLLIN | EPOLLET | EPOLLRDHUP;
-#endif
-
+// ！！！这个困扰我一个礼拜的bug终于找到了woc，下面这四个 ifdef 的顺序决定了workbench压测的结果，如果把connfdET放在listenfdLT的后面的话压测结果很低
+// 这是因为在main函数中，当listenfd在第一次addfd时，先listenLT再connfdET，导致其具有了ET属性，从此监听到listenfd有变化时只读取一次
+// 这样导致即使有新的fd连接进来也不处理，导致实际压测非常低，而把connfdET放在listenfdLT的前面就不具备ET属性了，正常处理即可
+// 其实关键在于源代码的这个部分写的比较糟糕，逻辑不明确，没有ET属性不会有太大影响，但是有ET属性的话就一定要while循环处理直至结束
+// 如果要改的话，需要增加一个形参，判断是否为listenfd，然后分别处理listenfd和connfd才对，或者形参只用来判断LT/ET，反正处理方法一样
 #ifdef connfdLT
     event.events = EPOLLIN | EPOLLRDHUP;
 #endif
 
 #ifdef connfdET
+    event.events = EPOLLIN | EPOLLET | EPOLLRDHUP;
+#endif
+
+#ifdef listenfdLT   
+    event.events = EPOLLIN | EPOLLRDHUP;
+#endif
+
+#ifdef listenfdET
     event.events = EPOLLIN | EPOLLET | EPOLLRDHUP;
 #endif
 
@@ -96,7 +101,7 @@ void modfd(int epollfd, int fd, int ev) {
 #endif
 
 #ifdef connfdET
-    event.events = ev | EPOLLONESHOT | EPOLLET | EPOLLRDHUP;
+    event.events = ev | EPOLLET | EPOLLONESHOT | EPOLLRDHUP;
 #endif
 
     // 重置EPOLLONESHOT事件，用EPOLL_CTL_MOD修改
@@ -193,10 +198,10 @@ bool http_conn::read_once() {
         } else if (bytes_read == 0) {
             // 如果返回0，说明连接中断，返回false
             return false;
-        } else {
-            // 若读取成功，移动下一次的读取位置，进入while循环直至全部读取结束后返回true
-            m_read_idx += bytes_read;
         }
+        // 改动10
+        // 若读取成功，移动下一次的读取位置，进入while循环直至全部读取结束后返回true
+        m_read_idx += bytes_read; 
     }
     return true;
 #endif
