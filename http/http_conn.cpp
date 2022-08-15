@@ -1,6 +1,6 @@
 #include "http_conn.h"
 #include "../log/log.h"
-#include <map>
+#include "../skiplist/skiplist.h"
 #include <mysql/mysql.h>
 #include <fstream>
 
@@ -32,7 +32,8 @@ int http_conn::m_epollfd = -1;
 int http_conn::m_user_count = 0;
 
 // 将表中的用户名和密码放入map，再定义一个互斥锁
-map<string, string> users;
+// 这里记得初始化level高度啊！！！
+skiplist<string, string> users(6);
 locker m_lock;
 
 // 定义几个处理文件描述符的函数，在main函数中会用到，并借助extern关键字声明
@@ -324,7 +325,7 @@ void http_conn::initmysql_result(connection_pool *connPool) {
     while (MYSQL_ROW row = mysql_fetch_row(result)) {
         string tmp1(row[0]);
         string tmp2(row[1]);
-        users[tmp1] = tmp2;
+        users.insert_element(tmp1, tmp2);
     }
 }
 
@@ -620,13 +621,13 @@ http_conn::HTTP_CODE http_conn::do_request() {
             strcat(sql_insert, password);
             strcat(sql_insert, "')");       // 注意这里最后不用加 ; 表示结束
 
-            if (users.find(name) == users.end()) {
+            if (!users.search_element(name)) {
                 // 用户不存在，加锁注册用户，保证同步
                 m_lock.lock();
                 // 说实话感觉下面这个判断有点鸡肋，执行insert语句，若失败返回非0值
                 // 改动9 woc这里没加斜杠 淦
                 int res = mysql_query(m_mysql, sql_insert);
-                users[name] = password;
+                users.insert_element(name, password);
                 m_lock.unlock();
 
                 // insert语句插入失败
@@ -640,7 +641,7 @@ http_conn::HTTP_CODE http_conn::do_request() {
 
         } else if (*(p + 1) == '2') {
             // 如果是登录校验，直接在已有的users即map集合中进行查找，并返回对应的页面
-            if (users.find(name) != users.end() && users[name] == password) strcpy(m_url, "/welcome.html");
+            if (users.search_element(name) && (users.search_value(name) == password)) strcpy(m_url, "/welcome.html");
             else strcpy(m_url, "/logError.html");
         }
         printf("%s\n", m_real_file);
