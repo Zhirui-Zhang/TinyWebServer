@@ -653,9 +653,11 @@ http_conn::HTTP_CODE http_conn::do_request() {
     // 其他情况把网站目录和m_real_file进行拼接
     else if (*(p + 1) == '0') strcat(m_real_file, "/register.html");
     else if (*(p + 1) == '1') strcat(m_real_file, "/log.html");
-    else if (*(p + 1) == '5') strcat(m_real_file, "/picture.html");
+    else if (*(p + 1) == '4') strcat(m_real_file, "/homepage.html");
+    else if (*(p + 1) == '5') strcat(m_real_file, "/cat.html");
     else if (*(p + 1) == '6') strcat(m_real_file, "/video.html");
-    else if (*(p + 1) == '7') strcat(m_real_file, "/fans.html");
+    else if (*(p + 1) == '7') strcat(m_real_file, "/dog.html");
+    else if (*(p + 1) == '8') strcat(m_real_file, "/welcome.html");
     // 如果以上情况都不符合，将m_real_file与m_url进行拼接，这里的情况是welcome界面，请求服务器上的一个图片
     
     // 我特喵的终于找到mysql失败的罪魁祸首了！！！这里连续的if else导致并没有把当 *(p + 1) == '2'/'3' 时的 m_url 接到m_real_file后面，把它放在 2/3 里面就行，淦
